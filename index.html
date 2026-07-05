@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>하와이 독서모임 지도</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root{
+    --surface:#fcfcfb; --plane:#f9f9f7;
+    --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --hair:#e1e0d9; --ring:rgba(11,11,11,.10);
+    --y21:#9b9992; --y22:#2a78d6; --y23:#1baf7a; --y24:#eda100; --y25:#008300; --y26:#4a3aa7;
+    --edge:#8a887f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    display:flex; font-family:system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif;
+    color:var(--ink); background:var(--plane);
+  }
+  /* ---------- sidebar ---------- */
+  #side{
+    width:372px; min-width:300px; height:100%; display:flex; flex-direction:column;
+    background:var(--surface); border-right:1px solid var(--hair); z-index:1000;
+  }
+  #side header{padding:18px 18px 12px; border-bottom:1px solid var(--hair)}
+  #side h1{font-size:17px; font-weight:700; letter-spacing:-.2px}
+  #side .sub{font-size:12px; color:var(--ink2); margin-top:4px}
+  .legend{display:flex; flex-wrap:wrap; gap:6px 12px; margin-top:10px}
+  .legend span{display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--ink2)}
+  .legend i{width:10px; height:10px; border-radius:50%; display:inline-block; border:1px solid var(--ring)}
+  .controls{display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap}
+  .btn{
+    font:600 12px/1 system-ui,"Malgun Gothic",sans-serif; color:var(--ink2);
+    padding:6px 11px; border:1px solid var(--hair); border-radius:999px;
+    background:var(--surface); cursor:pointer;
+  }
+  .btn:hover{background:var(--plane); color:var(--ink)}
+  .chk{display:inline-flex; align-items:center; gap:5px; font-size:12px; color:var(--ink2); cursor:pointer}
+  #list{flex:1; overflow-y:auto; padding:8px 0}
+  .item{
+    display:flex; gap:10px; padding:9px 18px; cursor:pointer;
+    border-left:3px solid transparent;
+  }
+  .item:hover{background:var(--plane)}
+  .item.active{background:var(--plane); border-left-color:var(--ink)}
+  .item.off{cursor:default; opacity:.55}
+  .badge{
+    flex:0 0 24px; width:24px; height:24px; border-radius:50%; margin-top:1px;
+    font:700 11px/22px system-ui; text-align:center; color:#fff;
+    border:1.5px solid #fff; box-shadow:0 0 0 1px var(--ring);
+  }
+  .badge.dim{background:var(--surface); color:var(--muted); border:1.5px dashed var(--hair); box-shadow:none}
+  .item .tx{min-width:0}
+  .item .t{font-size:13px; font-weight:600; line-height:1.35}
+  .item .m{font-size:11.5px; color:var(--muted); margin-top:2px; line-height:1.4}
+  #side footer{padding:10px 18px; border-top:1px solid var(--hair); font-size:11px; color:var(--muted)}
+  /* ---------- map ---------- */
+  #map{flex:1; height:100%; background:#eceae4}
+  .node{
+    width:26px; height:26px; border-radius:50%;
+    background:var(--c); color:var(--tc,#fff);
+    border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.35);
+    font:700 12px/22px system-ui; text-align:center;
+    transition:transform .15s;
+  }
+  .node.sel{transform:scale(1.35); box-shadow:0 2px 8px rgba(0,0,0,.45)}
+  .arrow{pointer-events:none}
+  .leaflet-popup-content-wrapper{border-radius:10px; box-shadow:0 4px 18px rgba(0,0,0,.18)}
+  .leaflet-popup-content{margin:14px 16px; font-family:inherit}
+  .pp .k{font-size:11px; color:var(--muted); margin-bottom:2px}
+  .pp .t{font-size:14px; font-weight:700; line-height:1.35; margin-bottom:6px}
+  .pp .r{font-size:12px; color:var(--ink2); line-height:1.55}
+  @media (max-width:760px){
+    body{flex-direction:column}
+    #map{order:1; flex:1 1 55%}
+    #side{order:2; width:100%; min-width:0; flex:1 1 45%; border-right:none; border-top:1px solid var(--hair)}
+  }
+</style>
+</head>
+<body>
+
+<aside id="side">
+  <header>
+    <h1>하와이 독서모임 지도</h1>
+    <div class="sub" id="subtitle"></div>
+    <div class="legend" id="legend"></div>
+    <div class="controls">
+      <button class="btn" id="btnSeoul">수도권 보기</button>
+      <button class="btn" id="btnAll">전체 보기</button>
+      <label class="chk"><input type="checkbox" id="chkPath" checked> 이동 경로</label>
+    </div>
+  </header>
+  <div id="list"></div>
+  <footer>장소 기록이 없는 모임은 목록에만 표시됨 · 노드 번호는 모임 회차</footer>
+</aside>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ---------- data ---------- */
+const YC = {21:'#9b9992', 22:'#2a78d6', 23:'#1baf7a', 24:'#eda100', 25:'#008300', 26:'#4a3aa7'};
+const YTXT = {24:'#3a2b00'}; // 옐로 노드는 어두운 숫자
+const M = [
+ {n:1,  y:21, p:'21.03', t:'공정하다는 착각', a:'마이클 샌델', d:'2021년 3월 20일', pl:null},
+ {n:2,  y:22, p:'22.03', t:'다정함의 과학', a:'켈리 하딩', d:'2022년 3월 9일', pl:null},
+ {n:3,  y:22, p:'22.05', t:'하루쯤 나 혼자 어디라도 가야겠다', a:'장은정', d:'2022년 5월 21일', pl:null},
+ {n:4,  y:22, p:'22.06', t:'알고리즘 인생을 계산하다', a:'브라이언 크리스천, 톰 그리피스', d:'2022년 6월 25일', pl:null},
+ {n:5,  y:22, p:'22.08', t:'구글 엔지니어는 이렇게 일한다', a:'타이터스 윈터스', d:'2022년 8월 6일', pl:null},
+ {n:6,  y:22, p:'22.09', t:'수학으로 생각하기', a:'스즈키 간타로', d:'2022년 9월 17일', pl:'서울역 / 손기정 도서관', ll:[37.5541,126.9640]},
+ {n:7,  y:22, p:'22.10', t:'아인슈타인의 냉장고', a:'폴 센', d:'2022년 10월 22일', pl:'잠원 한강공원', ll:[37.5271,127.0110]},
+ {n:8,  y:22, p:'22.11', t:'세대감각', a:'바비 더피', d:'2022년 11월 19일', pl:'남산 / 갤러리 Piknic', ll:[37.5567,126.9822]},
+ {n:9,  y:22, p:'22.12', t:'이토록 평범한 미래', a:'김연수', d:'2023년 1월 7일', pl:'경동 1960 스타벅스', ll:[37.5788,127.0403]},
+ {n:10, y:23, p:'23.01', t:'파타고니아', a:'이본 쉬나드', d:'2023년 4월 1일', pl:null},
+ {n:11, y:23, p:'23.05', t:'노화의 종말', a:'데이비드 A. 싱클레어, 매슈 D. 러플랜트', d:'2023년 5월 13일 오전 11:30', pl:'수원 여민각', ll:[37.2809,127.0139]},
+ {n:12, y:23, p:'23.06', t:'도둑맞은 집중력', a:'요한 하리', d:'2023년 6월 24일 오전 11:30', pl:'서울숲', ll:[37.5444,127.0374]},
+ {n:13, y:23, p:'23.07', t:'일의 기쁨과 슬픔', a:'장류진', d:'2023년 7월 22일 오전 11:30', pl:'강남역', ll:[37.4979,127.0276]},
+ {n:14, y:23, p:'23.08', t:'집단 착각', a:'토드 로즈', d:'2023년 8월 26일 오전 11:30', pl:'루나아시아 / 메가박스 코엑스 (오펜하이머 관람)', ll:[37.5126,127.0594]},
+ {n:15, y:23, p:'23.10', t:'다감 선생님은 아이들이 싫다', a:'공민철', d:'2023년 10월 21일 오후 2:00', pl:'덕수궁 돈덕전', ll:[37.5662,126.9749]},
+ {n:16, y:23, p:'23.11', t:'빌 게이츠, 기후재앙을 피하는 방법', a:'빌 게이츠', d:'2023년 11월 25일 오후 2:30', pl:'국립과천과학관', ll:[37.4340,127.0016]},
+ {n:17, y:24, p:'24.01', t:'미키7', a:'에드워드 에슈턴', d:'2024년 1월 6일 오후 2:00', pl:'소수책방 (신당동)', ll:[37.5556,127.0132]},
+ {n:18, y:24, p:'24.02', t:'차라투스트라는 이렇게 아팠다', a:'이찬휘, 허두영, 강지희', d:'2024년 2월 24일 오후 2:00', pl:'커피한약방 (을지로)', ll:[37.5665,126.9899]},
+ {n:19, y:24, p:'24.03', t:'우리는 왜 집단에서 바보가 되었는가', a:'군터 뒤크', d:'2024년 3월 30일 오전 9:00', pl:'광주 국립아시아문화전당', ll:[35.1468,126.9203]},
+ {n:20, y:24, p:'24.04', t:'이기적 직원들이 만드는 최고의 회사', a:'유호현', d:'2024년 4월 27일 오후 2:30', pl:null},
+ {n:21, y:24, p:'24.06', t:'나는 메트로폴리탄 미술관의 경비원입니다', a:'패트릭 브링리', d:'2024년 6월 8일 오후 3:30', pl:"삼성역 마이아트뮤지엄 '스웨덴국립미술관 컬렉션'", ll:[37.5091,127.0637]},
+ {n:22, y:24, p:'24.07', t:'AI 이후의 세계', a:'헨리 키신저, 에릭 슈밋, 대니얼 허튼로커', d:'2024년 7월 27일 오전 11:30', pl:null},
+ {n:23, y:24, p:'24.09', t:'AI가 훔쳐간 인문학', a:'김철수', d:'2024년 9월 7일 오후 4:00', pl:'줌 온라인 미팅'},
+ {n:24, y:24, p:'24.09', t:'나라는 착각', a:'그레고리 번스', d:'2024년 9월 28일 오전 11:30', pl:'과천과학관', ll:[37.4352,127.0030]},
+ {n:25, y:24, p:'24.10', t:'달리기를 말할 때 내가 하고 싶은 이야기', a:'무라카미 하루키', d:'2024년 10월 26일 오후 2:00', pl:'창경궁', ll:[37.5787,126.9948]},
+ {n:26, y:24, p:'24.12', t:'한 해를 마무리 하는, 새 해를 시작하는 (각자 선정)', a:null, d:'2024년 12월 7일', pl:'봉은사', ll:[37.5148,127.0575]},
+ {n:27, y:25, p:'25.01', t:'한 해를 마무리 하는, 새 해를 시작하는 (책 바꿔읽기)', a:null, d:'2025년 1월 4일', pl:'국립중앙박물관', ll:[37.5238,126.9804]},
+ {n:28, y:25, p:'25.02', t:'슈뢰딩거의 노벨문학상 수상자 한강작가님! (희랍어 시간 등)', a:'한강', d:'2025년 3월 8일', pl:'용산 CGV Ultra4DX (미키17 관람)', ll:[37.5297,126.9648]},
+ {n:29, y:25, p:'25.04', t:'초역 부처의 말', a:'코이케 류노스케', d:'2025년 4월 27일 오후 12:00', pl:'지원님 결혼식'},
+ {n:30, y:25, p:'25.05–06', t:'어른의 서유기', a:'성태용', d:'2025년 6월 21일', pl:'과천식물원', ll:[37.4278,127.0175]},
+ {n:31, y:25, p:'25.07', t:'우중괴담', a:'미쓰다 신조', d:'2025년 8월 30일', pl:'후암거실 (오후 2시~6시)', ll:[37.5493,126.9789]},
+ {n:32, y:25, p:'25.09', t:'지능의 기원', a:'맥스 베넷', d:'2025년 9월 27일 오후 3:00', pl:'서울로봇인공지능과학관', ll:[37.6547,127.0496]},
+ {n:33, y:25, p:'25.10', t:'머니: 인류의 역사', a:'데이비드 맥윌리엄스', d:'2025년 10월 25일 오후 3:00', pl:'한국은행 화폐박물관 (전시해설투어)', ll:[37.5599,126.9822]},
+ {n:34, y:25, p:'25.11', t:'먼저온미래', a:'장강명', d:'2025년 11월 29일', pl:'DDP 전시관, 장 미셸 바스키아 전시', ll:[37.5665,127.0092]},
+ {n:35, y:26, p:'26.01', t:'신년 미스터리 교환회', a:null, d:'2026년 1월 24일', pl:'신년회 식사모임 (왕십리)', ll:[37.5613,127.0371]},
+ {n:36, y:26, p:'26.03', t:'뽑기로 선택된 도서 감상회', a:null, d:'2026년 3월 7일', pl:'남서울미술관, 엔트리55 재즈공연', ll:[37.4766,126.9817]},
+ {n:37, y:26, p:'26.04', t:'고독한 용의자', a:'찬호께이', d:'2026년 4월 4일', pl:'벚꽃놀이 (정독도서관, 서촌 박노수미술관)', ll:[37.5808,126.9818]},
+ {n:38, y:26, p:'26.05', t:'포지셔닝', a:'잭 트라우트, 앨 리스', d:'2026년 5월 23일', pl:'국립중앙박물관 (이후 장교숙소5단지로 이동)', ll:[37.5250,126.9816]},
+ {n:39, y:26, p:'26.06', t:'그들은 왜 최후의 승자가 되지 못했나2 (진행 중)', a:'한순구', d:'2026년 6월 27일 오후 4:00', pl:'이케아 광명점', ll:[37.4262,126.8827]},
+];
+const mapped = M.filter(m => m.ll);
+
+/* ---------- map ---------- */
+const map = L.map('map', {zoomSnap:.5});
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  maxZoom:19, subdomains:'abcd',
+  attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+}).addTo(map);
+
+const seoulBounds = L.latLngBounds(mapped.filter(m=>m.ll[0]>36.5).map(m=>m.ll)).pad(0.08);
+const allBounds   = L.latLngBounds(mapped.map(m=>m.ll)).pad(0.08);
+map.fitBounds(seoulBounds);
+
+/* ---------- edges (curved + mid arrow) ---------- */
+function curvePts(a, b){
+  const k = 0.18, n = 32;
+  const mx=(a[0]+b[0])/2, my=(a[1]+b[1])/2;
+  const dx=b[0]-a[0], dy=b[1]-a[1];
+  const cx=mx-dy*k, cy=my+dx*k;              // 수직 방향으로 살짝 휨
+  const pts=[];
+  for(let i=0;i<=n;i++){
+    const t=i/n, u=1-t;
+    pts.push([u*u*a[0]+2*u*t*cx+t*t*b[0], u*u*a[1]+2*u*t*cy+t*t*b[1]]);
+  }
+  return pts;
+}
+const pathLayer = L.layerGroup().addTo(map);
+for(let i=0;i<mapped.length-1;i++){
+  const a=mapped[i].ll, b=mapped[i+1].ll;
+  const pts=curvePts(a,b);
+  L.polyline(pts, {color:'#8a887f', weight:2, opacity:.6}).addTo(pathLayer);
+  // 중간 지점 화살표 (진행 방향)
+  const p1=pts[15], p2=pts[17], mid=pts[16];
+  const rad = (mid[0]+ (a[0]+b[0])/2)/2 * Math.PI/180;
+  const ang = Math.atan2((p2[1]-p1[1])*Math.cos(rad), p2[0]-p1[0]) * 180/Math.PI;
+  L.marker(mid, {
+    interactive:false,
+    icon: L.divIcon({className:'arrow', iconSize:[14,14], iconAnchor:[7,7],
+      html:`<svg viewBox="0 0 12 12" style="transform:rotate(${ang}deg)"><path d="M6 0 L11 11 L6 8.6 L1 11 Z" fill="#6f6d66"/></svg>`})
+  }).addTo(pathLayer);
+}
+document.getElementById('chkPath').addEventListener('change', e => {
+  e.target.checked ? pathLayer.addTo(map) : map.removeLayer(pathLayer);
+});
+
+/* ---------- nodes ---------- */
+const markers = {};
+mapped.forEach(m => {
+  const tc = YTXT[m.y] || '#fff';
+  const mk = L.marker(m.ll, {
+    zIndexOffset: m.n*10,
+    icon: L.divIcon({className:'', iconSize:[26,26], iconAnchor:[13,13],
+      html:`<div class="node" id="node-${m.n}" style="--c:${YC[m.y]};--tc:${tc}">${m.n}</div>`})
+  }).addTo(map);
+  mk.bindPopup(popupHtml(m), {maxWidth:270});
+  mk.on('click', () => select(m.n, false));
+  markers[m.n] = mk;
+});
+function popupHtml(m){
+  return `<div class="pp">
+    <div class="k">${m.n}번째 모임 · ${m.p}</div>
+    <div class="t">${m.t}</div>
+    <div class="r">${m.a ? '저자 ' + m.a + '<br>' : ''}${m.d}<br>📍 ${m.pl}</div>
+  </div>`;
+}
+
+/* ---------- sidebar ---------- */
+document.getElementById('subtitle').textContent =
+  `모임 ${M.length}회 · 지도 표시 ${mapped.length}곳 (2021–2026)`;
+
+const legend = document.getElementById('legend');
+[[22,'2022'],[23,'2023'],[24,'2024'],[25,'2025'],[26,'2026']].forEach(([y,label])=>{
+  legend.insertAdjacentHTML('beforeend', `<span><i style="background:${YC[y]}"></i>${label}</span>`);
+});
+
+const list = document.getElementById('list');
+M.forEach(m => {
+  const on = !!m.ll;
+  const badge = on
+    ? `<div class="badge" style="background:${YC[m.y]};color:${YTXT[m.y]||'#fff'}">${m.n}</div>`
+    : `<div class="badge dim">${m.n}</div>`;
+  const meta = [m.d, m.pl || '장소 기록 없음'].join(' · ');
+  list.insertAdjacentHTML('beforeend',
+    `<div class="item${on?'':' off'}" id="item-${m.n}">${badge}
+       <div class="tx"><div class="t">${m.t}</div><div class="m">${meta}</div></div>
+     </div>`);
+  if(on) document.getElementById('item-'+m.n).addEventListener('click', () => select(m.n, true));
+});
+
+let selected = null;
+function select(n, fly){
+  if(selected){
+    document.getElementById('item-'+selected)?.classList.remove('active');
+    document.getElementById('node-'+selected)?.classList.remove('sel');
+  }
+  selected = n;
+  document.getElementById('item-'+n)?.classList.add('active');
+  document.getElementById('node-'+n)?.classList.add('sel');
+  document.getElementById('item-'+n)?.scrollIntoView({block:'nearest', behavior:'smooth'});
+  if(fly){
+    const m = M.find(x=>x.n===n);
+    map.once('moveend', () => markers[n].openPopup());
+    map.flyTo(m.ll, Math.max(map.getZoom(), 13), {duration:.8});
+    setTimeout(() => { if(!markers[n].isPopupOpen()) markers[n].openPopup(); }, 1200);
+  }
+}
+
+document.getElementById('btnSeoul').addEventListener('click', () => map.fitBounds(seoulBounds, {animate:true}));
+document.getElementById('btnAll').addEventListener('click', () => map.fitBounds(allBounds, {animate:true}));
+</script>
+</body>
+</html>
