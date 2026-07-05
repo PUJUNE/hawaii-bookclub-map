@@ -18,6 +18,6 @@
 
 ## 출처
 
-모임 기록 원본: [하와이 독서모임 Notion 페이지](https://erucipe.notion.site/393d5c9e7e5980cbad1ac6cb6d9c8f69)
+모임 기록 원본: [하와이 - 인간과 기술 Notion DB](https://app.notion.com/p/aacac98e2342495bb52aa085b0c655ab?v=d077485054d94997947f891620cd2bf1) (모임 멤버 전용)
 
 지도 타일: © OpenStreetMap contributors, © CARTO
