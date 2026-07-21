@@ -115,7 +115,7 @@
       <label class="chk"><input type="checkbox" id="chkPath" checked> 이동 경로</label>
     </div>
   </header>
-  <button id="listToggle">모임 목록 (39) <span id="ltArrow">▾</span></button>
+  <button id="listToggle">모임 목록 (<span id="ltCount"></span>) <span id="ltArrow">▾</span></button>
   <div id="list"></div>
   <footer>장소 기록이 없는 모임은 목록에만 표시됨 · 노드 번호는 모임 회차</footer>
 </aside>
@@ -279,6 +279,7 @@ function popupHtml(m){
 /* ---------- sidebar ---------- */
 document.getElementById('subtitle').textContent =
   `모임 ${M.length}회 · 지도 표시 ${mapped.length}곳 (2021–2026)`;
+document.getElementById('ltCount').textContent = M.length;
 
 const legend = document.getElementById('legend');
 [[22,'2022'],[23,'2023'],[24,'2024'],[25,'2025'],[26,'2026']].forEach(([y,label])=>{
